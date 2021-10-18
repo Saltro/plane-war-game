@@ -1,14 +1,11 @@
 import { defineComponent, h, toRefs } from "@vue/runtime-core"
-import enemyImg from '../../assets/enemy.png'
+import bulletImg from '../../assets/bunny-self.png'
 
 export default defineComponent({
-  props: {
-    x: Number,
-    y: Number
-  },
   setup(props, ctx) {
     // props 只读
     // 响应式丢失
+
     const {x, y} = toRefs(props)
     
     return {
@@ -22,7 +19,7 @@ export default defineComponent({
       y: ctx.y
     }, [
       h("Sprite", {
-        texture: enemyImg
+        texture: bulletImg
       })
     ])
   }

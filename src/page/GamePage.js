@@ -3,6 +3,7 @@ import { game } from '../Game'
 import Map from "../component/Map"
 import Plane from "../component/Plane"
 import Enemy from "../component/Enemy"
+import Bullet from '../component/Bullet'
 import { hitTestObject } from "../utils"
 
 export default defineComponent({
@@ -11,41 +12,36 @@ export default defineComponent({
 
     const enemies = useEnemies()
 
-    const gamePageLoop = () => {
-      // 游戏主循环
-      // 随机移动飞机
-      enemies.forEach(info => {
-        info.y++
-      })
+    const { bullets, addBullet } = useBullets()
 
-      // 碰撞检测（矩形碰撞）
-      enemies.forEach(info => {
-        if (hitTestObject(info, planeInfo)) {
-          // 碰撞后游戏结束
-          ctx.emit('changePage', 'EndPage')
-        }
-      })
+    const onAttack = bulletInfo => {
+      addBullet(bulletInfo)
     }
 
-    onMounted(() => {
-      game.ticker.add(gamePageLoop)
-    })
-
-    // 销毁时取消循环
-    onUnmounted(() => {
-      game.ticker.remove(gamePageLoop)
-    })
+    useFighting(ctx.emit, planeInfo, bullets, enemies)
 
     return {
       planeInfo,
-      enemies
+      enemies,
+      bullets,
+      onAttack
     }
   },
   render(ctx) {
-    // 创建敌机
+    // 根据 enemies 创建敌机
     const createEnemies = () => {
       return ctx.enemies.map(info => {
         return h(Enemy, {
+          x: info.x,
+          y: info.y
+        })
+      })
+    }
+
+    // 根据 bullets 创建子弹
+    const createBullets = () => {
+      return ctx.bullets.map(info => {
+        return h(Bullet, {
           x: info.x,
           y: info.y
         })
@@ -58,9 +54,11 @@ export default defineComponent({
       h(Map),
       h(Plane, {
         x: ctx.planeInfo.x,
-        y: ctx.planeInfo.y
+        y: ctx.planeInfo.y,
+        onAttack: ctx.onAttack
       }),
-      ...createEnemies()
+      ...createEnemies(),
+      ...createBullets()
     ])
   }
 })
@@ -74,21 +72,21 @@ function usePlaneInfo() {
     height: 364
   })
 
-  const speed = 16
+  const SPEED = 16
   window.addEventListener("keydown", (e) => {
     // console.log(e)
     switch (e.code) {
       case 'ArrowUp':
-        planeInfo.y -= speed
+        planeInfo.y -= SPEED
         break
       case 'ArrowDown':
-        planeInfo.y += speed
+        planeInfo.y += SPEED
         break
       case 'ArrowLeft':
-        planeInfo.x -= speed
+        planeInfo.x -= SPEED
         break
       case 'ArrowRight':
-        planeInfo.x += speed
+        planeInfo.x += SPEED
         break
     }
   })
@@ -107,4 +105,67 @@ function useEnemies() {
   }])
 
   return enemies
+}
+
+function useBullets() {
+  const bullets = reactive([])
+
+  const addBullet = bulletInfo => {
+    bullets.push({
+      x: bulletInfo.x + 100,
+      y: bulletInfo.y,
+      width: 61,
+      height: 99
+    })
+  }
+
+  return {
+    bullets,
+    addBullet
+  }
+}
+
+function useFighting(emit, planeInfo, bullets, enemies) {
+  const BULLET_SPEED = 5
+  const ENEMY_SPEED = 1
+  
+  // 游戏主循环
+  const gamePageLoop = () => {
+    // 随机移动飞机
+    enemies.forEach(info => {
+      info.y += ENEMY_SPEED
+    })
+
+    // 向上移动子弹
+    bullets.forEach(info => {
+      info.y -= BULLET_SPEED
+    })
+
+    // 碰撞检测（矩形碰撞）
+    // 我方飞机和敌人撞到
+    enemies.forEach(info => {
+      if (hitTestObject(info, planeInfo)) {
+        // 碰撞后游戏结束
+        emit('changePage', 'EndPage')
+      }
+    })
+    // 子弹和敌方飞机碰撞
+    bullets.forEach((bulletInfo, bulletIndex) => {
+      enemies.forEach((enemyInfo, enemyIndex) => {
+        if (hitTestObject(bulletInfo, enemyInfo)) {
+          bullets.splice(bulletIndex, 1)
+          enemies.splice(enemyIndex, 1)
+        }
+      })
+    })
+  }
+
+  onMounted(() => {
+    game.ticker.add(gamePageLoop)
+  })
+
+  // 销毁时取消循环
+  onUnmounted(() => {
+    game.ticker.remove(gamePageLoop)
+  })
 }
